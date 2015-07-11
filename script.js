@@ -11,6 +11,7 @@ var farPlane;
 var controls;
 const ENV = 'dev';
 var cubeLimit;
+var gui;
 //Lights
 var light;
 var shadowLight;
@@ -162,12 +163,22 @@ function addMainCharacter() {
 function generateShapes() {
 
 }
+function gui() {
+    gui = new dat.GUI();
+    var params = {
+        test: 1000
+    };
+    gui.add(params, 'test');
+}
 function init() {
     configureScene();
     appendScene();
     addMainCharacter();
     generateShapes();
     render();
+    if (isDev()) {
+        gui();
+    }
 }
 init();
 animate();
