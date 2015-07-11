@@ -6,6 +6,9 @@ var fieldOfView;
 var aspectRatio;
 var renderer;
 var floor;
+var floorX = 1000;
+var floorY = 1000;
+var floorZ = 1000;
 var nearPlane;
 var farPlane;
 var controls;
@@ -48,14 +51,14 @@ function isDev() {
     return ENV == 'dev';
 }
 function addFloor() {
-    floor = new THREE.Mesh(new THREE.PlaneBufferGeometry(1000, 1000), new THREE.MeshBasicMaterial({color: 0xebe5e7}));
+    floor = new THREE.Mesh(new THREE.PlaneBufferGeometry(floorX, floorY), new THREE.MeshBasicMaterial({color: 0xebe5e7}));
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = 0;
     floor.receiveShadow = true;
     scene.add(floor);
     if (isDev()) {
-        var cubeLimitgGeom = new THREE.BoxGeometry(1000, 1000, 1000, 2, 2, 2);
-        cubeLimit = new THREE.Mesh(cubeLimitgGeom, new THREE.MeshLambertMaterial({
+        var cubeLimitGeom = new THREE.BoxGeometry(floorX, floorY, floorZ, 2, 2, 2);
+        cubeLimit = new THREE.Mesh(cubeLimitGeom, new THREE.MeshLambertMaterial({
             color: 0xad3525,
             shading: THREE.FlatShading,
             wireframe: true
@@ -157,11 +160,58 @@ var Character = function () {
 }
 function addMainCharacter() {
     character = new Character();
-    console.log(character);
     scene.add(character.model);
 }
+function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+function generateHexa() {
+    var letters = '0123456789ABCDEF'.split('');
+    var color = '#';
+    for (var i = 0; i < 6; i++ ) {
+        color += letters[Math.round(Math.random() * 15)];
+    }
+    return color;
+}
 function generateShapes() {
+    var iNumberOfShape = 100;
+    var shapes = new THREE.Group();
+    var shapeSize = 10;
+    for (var i = 0; i < iNumberOfShape; i++) {
+        var shapeGeom = new THREE.BoxGeometry(shapeSize, shapeSize, shapeSize);
+        var shape = new THREE.Mesh(shapeGeom, new THREE.MeshLambertMaterial({
+            color: generateHexa()
+        }));
+        var pX = getRandomInt((floorX / 2), (-floorX / 2));
+        var pY = getRandomInt(floorY, shapeSize / 2);
+        var pZ = getRandomInt((floorZ / 2), (-floorZ / 2));
+        shape.position.set(pX, pY, pZ);
+        var rX = getRandomInt(Math.PI * 2, 0);
+        var rY = getRandomInt(Math.PI * 2, 0);
+        var rZ = getRandomInt(Math.PI * 2, 0);
+        shape.rotation.set(rX, rY, rZ);
 
+
+        if (isDev()) {
+            var outline = new THREE.Mesh(shapeGeom, new THREE.MeshBasicMaterial({
+                color: 0x00ff00,
+                side: THREE.BackSide
+            }));
+            outline.position.set(pX, pY, pZ);
+            outline.rotation.set(rX, rY, rZ);
+            outline.scale.multiplyScalar(1.15);
+            shapes.add(outline);
+        }
+        shapes.add(shape);
+
+    }
+    shapes.traverse(function (obj) {
+        if (obj instanceof THREE.Mesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+        }
+    });
+    scene.add(shapes);
 }
 function gui() {
     gui = new dat.GUI();
