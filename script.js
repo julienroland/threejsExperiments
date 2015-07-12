@@ -12,7 +12,6 @@ var floorZ = 1000;
 var nearPlane;
 var farPlane;
 var controls;
-const ENV = 'dev';
 var cubeLimit;
 var gui;
 //Lights
@@ -21,12 +20,15 @@ var shadowLight;
 var backLight;
 
 //Constants
+const ENV = 'dev';
 var HEIGHT;
 var WIDTH;
 
 //Global
 var character;
-const BEVEL = 10;
+var baseTime = 0.005;
+var time = baseTime;
+var timeIncrement = 0.005;
 function appendScene() {
     container.appendChild(renderer.domElement);
 }
@@ -117,7 +119,17 @@ function configureScene() {
 
 
 }
+function resetTime() {
+    time = baseTime;
+}
 function animate() {
+    character.absorbe.run(time);
+    //character.reject.run(time);
+    if (character.absorbe.isDone()) {
+        character.reject.run(time);
+    }
+    //time += timeIncrement;
+    render();
     requestAnimationFrame(animate);
     controls.update();
 }
@@ -125,30 +137,71 @@ function render() {
     renderer.render(scene, camera);
 }
 var Character = function () {
+    var _this = this;
     this.model = new THREE.Group();
     this.redMat = new THREE.MeshLambertMaterial({
         color: 0xad3525,
         shading: THREE.FlatShading
     });
-    var radiusOfTopCircle = 20;
-    var radiusOfBottomCircle = 25;
-    var heightOfCylinder = 80;
-    var bodyGeom = new THREE.CylinderGeometry(radiusOfTopCircle, radiusOfBottomCircle, heightOfCylinder, BEVEL);
+    var sizeH = 60;
+    var sizeW = 50;
+    var bodyGeom = new THREE.BoxGeometry(sizeH, sizeW, sizeW);
     this.body = new THREE.Mesh(bodyGeom, this.redMat);
     this.body.translateY(200);
     this.body.rotateZ(-Math.PI / 2);
-    this.model.add(this.body);
 
-    var radiusOfTopCircle = 20;
-    var radiusOfBottomCircle = 25;
-    var heightOfCylinder = 50;
-    var headGeom = new THREE.CylinderGeometry(radiusOfTopCircle, radiusOfBottomCircle, heightOfCylinder, BEVEL);
-    this.head = new THREE.Mesh(headGeom, this.redMat);
-    this.head.translateY(200);
-    this.head.translateX(40);
-    this.head.translateY(10);
-    this.head.rotateZ(-Math.PI / 4);
-    this.model.add(this.head);
+    this.absorbe = {
+        maxY: 0.7,
+        maxX: 1.5,
+        done: {
+            x: false,
+            y: false
+        },
+        run: function (time) {
+            var acceleration = (time * 1.2);
+            if (_this.body.scale.y > this.maxY && !this.done.y) {
+                _this.body.scale.y -= acceleration;
+            } else {
+                this.done.y = true;
+            }
+            if (_this.body.scale.x < this.maxX && !this.done.x) {
+                _this.body.scale.x += (acceleration * 1.5);
+            }
+            else {
+                this.done.x = true;
+            }
+        },
+        isDone: function () {
+            return Boolean(this.done.x && this.done.y);
+        }
+    };
+    this.reject = {
+        maxY: 2,
+        maxX: 2,
+        done: {
+            x: false,
+            y: false
+        },
+        run: function (time) {
+            var acceleration = (time * 5.2);
+            if (_this.body.scale.y < this.maxY && !this.done.y) {
+                _this.body.scale.y += acceleration;
+            } else {
+                this.done.y = true;
+            }
+            if (_this.body.scale.x < this.maxX && _this.body.scale.y > this.maxY / 0.5 && !this.done.x) {
+                _this.body.scale.x += acceleration;
+            } else {
+                this.done.x = true;
+            }
+        },
+        isDone: function () {
+            return Boolean(this.done.x && this.done.y);
+        }
+    };
+
+
+    this.model.add(this.body);
 
     this.model.traverse(function (obj) {
         if (obj instanceof THREE.Mesh) {
@@ -165,43 +218,65 @@ function addMainCharacter() {
 function getRandomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-function generateHexa() {
+function hexToRgb(hex) {
+    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : null;
+}
+
+function generateColor() {
     var letters = '0123456789ABCDEF'.split('');
     var color = '#';
-    for (var i = 0; i < 6; i++ ) {
+    for (var i = 0; i < 6; i++) {
         color += letters[Math.round(Math.random() * 15)];
     }
-    return color;
+    var rgb = hexToRgb(color);
+    return new THREE.Color("rgb(" + rgb.r + "," + rgb.g + "," + rgb.b + ")");
+}
+function randomizePosition(shape, shapeSize) {
+    var pX = getRandomInt((floorX / 2), (-floorX / 2));
+    var pY = getRandomInt(floorY, shapeSize / 2);
+    var pZ = getRandomInt((floorZ / 2), (-floorZ / 2));
+    shape.position.set(pX, pY, pZ);
+    var rX = getRandomInt(Math.PI * 2, 0);
+    var rY = getRandomInt(Math.PI * 2, 0);
+    var rZ = getRandomInt(Math.PI * 2, 0);
+    shape.rotation.set(rX, rY, rZ);
+    return shape;
+}
+function generateCube() {
+    var shapeSize = getRandomInt(10, 20);
+    var shapeGeom = new THREE.BoxGeometry(shapeSize, shapeSize, shapeSize);
+    var shape = new THREE.Mesh(shapeGeom, new THREE.MeshLambertMaterial({
+        color: generateColor()
+    }));
+    shape = randomizePosition(shape, shapeSize);
+    return shape;
+}
+
+function generateOctahedron() {
+    var shapeSize = getRandomInt(10, 20);
+    var shapeGeom = new THREE.OctahedronGeometry(shapeSize);
+    var shape = new THREE.Mesh(shapeGeom, new THREE.MeshLambertMaterial({
+        color: generateColor()
+    }));
+    shape = randomizePosition(shape, shapeSize);
+    return shape;
 }
 function generateShapes() {
     var iNumberOfShape = 100;
     var shapes = new THREE.Group();
-    var shapeSize = 10;
     for (var i = 0; i < iNumberOfShape; i++) {
-        var shapeGeom = new THREE.BoxGeometry(shapeSize, shapeSize, shapeSize);
-        var shape = new THREE.Mesh(shapeGeom, new THREE.MeshLambertMaterial({
-            color: generateHexa()
-        }));
-        var pX = getRandomInt((floorX / 2), (-floorX / 2));
-        var pY = getRandomInt(floorY, shapeSize / 2);
-        var pZ = getRandomInt((floorZ / 2), (-floorZ / 2));
-        shape.position.set(pX, pY, pZ);
-        var rX = getRandomInt(Math.PI * 2, 0);
-        var rY = getRandomInt(Math.PI * 2, 0);
-        var rZ = getRandomInt(Math.PI * 2, 0);
-        shape.rotation.set(rX, rY, rZ);
-
-
-        if (isDev()) {
-            var outline = new THREE.Mesh(shapeGeom, new THREE.MeshBasicMaterial({
-                color: 0x00ff00,
-                side: THREE.BackSide
-            }));
-            outline.position.set(pX, pY, pZ);
-            outline.rotation.set(rX, rY, rZ);
-            outline.scale.multiplyScalar(1.15);
-            shapes.add(outline);
+        var iRandom = Math.random();
+        if (iRandom < 0.5) {
+            var shape = generateCube();
+        } else if (iRandom >= 0.5) {
+            var shape = generateOctahedron();
         }
+
         shapes.add(shape);
 
     }
@@ -225,10 +300,9 @@ function init() {
     appendScene();
     addMainCharacter();
     generateShapes();
-    render();
     if (isDev()) {
         gui();
     }
+    animate();
 }
 init();
-animate();
